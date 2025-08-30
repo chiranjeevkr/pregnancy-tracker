@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { 
   Typography, Card, CardContent, Grid, Box, 
   AppBar, Toolbar, Avatar, Badge, IconButton,
-  useTheme, useMediaQuery
+  useTheme, useMediaQuery, Drawer, List, ListItem, ListItemIcon, ListItemText, Divider
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { 
   Assignment, Chat, FitnessCenter, Games, 
   LocalHospital, Emergency, Notifications,
-  Menu as MenuIcon, Woman
+  Menu as MenuIcon, Woman, Home, Person, ExitToApp
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/system';
 
@@ -103,6 +103,18 @@ const Dashboard = ({ user }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [weekInfo, setWeekInfo] = useState('');
   const [notificationsCount, setNotificationsCount] = useState(2);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const navigationItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: <Home /> },
+    { label: 'Profile', path: '/profile', icon: <Person /> },
+    { label: 'Daily Report', path: '/daily-report', icon: <Assignment /> },
+    { label: 'AI Chatbot', path: '/chatbot', icon: <Chat /> },
+    { label: 'Exercise Guide', path: '/exercise', icon: <FitnessCenter /> },
+    { label: 'Stress Relief', path: '/game', icon: <Games /> },
+    { label: 'Find Hospitals', path: '/hospitals', icon: <LocalHospital /> },
+    { label: 'Emergency SOS', path: '/sos', icon: <Emergency /> },
+  ];
 
   useEffect(() => {
     // Set up daily notification reminder
@@ -197,6 +209,7 @@ const Dashboard = ({ user }) => {
             edge="start"
             color="inherit"
             aria-label="menu"
+            onClick={() => setDrawerOpen(true)}
             sx={{ mr: 2, color: '#667eea' }}
           >
             <MenuIcon />
@@ -220,6 +233,68 @@ const Dashboard = ({ user }) => {
           </Avatar>
         </Toolbar>
       </StyledAppBar>
+
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box sx={{ width: 250, pt: 2 }}>
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Typography variant="h6" sx={{ color: '#667eea', fontWeight: 600 }}>
+              PregnancyCare
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              Week {user.currentWeek}
+            </Typography>
+          </Box>
+          <Divider />
+          <List>
+            {navigationItems.map((item) => (
+              <ListItem 
+                button 
+                key={item.path}
+                onClick={() => {
+                  navigate(item.path);
+                  setDrawerOpen(false);
+                }}
+                sx={{
+                  '&:hover': {
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)'
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ color: '#667eea' }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.label} />
+              </ListItem>
+            ))}
+          </List>
+          <Divider />
+          <List>
+            <ListItem 
+              button 
+              onClick={() => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                setDrawerOpen(false);
+              }}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 68, 68, 0.1)'
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: '#ff4444' }}>
+                <ExitToApp />
+              </ListItemIcon>
+              <ListItemText primary="Logout" sx={{ color: '#ff4444' }} />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
 
       <DashboardContainer>
         <HeaderSection>
