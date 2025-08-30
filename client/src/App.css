@@ -1,6 +1,6 @@
 .App {
   min-height: 100vh;
-  background: linear-gradient(135deg, #fff0f5 0%, #ffc1cc 100%);
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
 }
 
 .auth-container {
@@ -47,7 +47,7 @@
 }
 
 .week-display {
-  background: linear-gradient(45deg, #ff6b9d, #ffc1cc);
+  background: linear-gradient(45deg, #e91e63, #f44336);
   color: white;
   padding: 20px;
   border-radius: 15px;
@@ -110,7 +110,7 @@
 }
 
 .user-message {
-  background: #ff6b9d;
+  background: #e91e63;
   color: white;
   margin-left: 20%;
 }
@@ -186,7 +186,7 @@
 }
 
 .submit-button {
-  background: linear-gradient(45deg, #ff6b9d, #ffc1cc) !important;
+  background: linear-gradient(45deg, #e91e63, #f44336) !important;
   color: white !important;
   padding: 12px 30px !important;
   border-radius: 25px !important;
