@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Initialize Gemini AI (optional)
@@ -15,6 +16,18 @@ try {
 } catch (error) {
   console.log('Gemini AI initialization failed:', error.message);
 }
+
+// Email transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// Store OTPs temporarily (in production, use Redis or database)
+const otpStore = new Map();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -286,6 +299,92 @@ app.get('/api/chat-history', authenticateToken, async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50);
     res.json(chatHistory);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Send OTP for account deletion
+app.post('/api/send-delete-otp', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store OTP with expiration (5 minutes)
+    otpStore.set(userId, {
+      otp: otp,
+      expires: Date.now() + 5 * 60 * 1000
+    });
+    
+    // Send email
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Account Deletion OTP - Pregnancy Tracker',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #f44336;">Account Deletion Request</h2>
+          <p>Hello ${user.name},</p>
+          <p>You have requested to delete your Pregnancy Tracker account. To confirm this action, please use the following OTP:</p>
+          <div style="background: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #f44336; font-size: 32px; margin: 0;">${otp}</h1>
+          </div>
+          <p><strong>This OTP will expire in 5 minutes.</strong></p>
+          <p>If you did not request this, please ignore this email and your account will remain safe.</p>
+          <p>Best regards,<br>Pregnancy Tracker Team</p>
+        </div>
+      `
+    };
+    
+    await transporter.sendMail(mailOptions);
+    res.json({ message: 'OTP sent successfully' });
+  } catch (error) {
+    console.error('Email error:', error);
+    res.status(500).json({ message: 'Error sending OTP' });
+  }
+});
+
+// Delete account endpoint with OTP verification
+app.delete('/api/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { otp } = req.body;
+    
+    if (!otp) {
+      return res.status(400).json({ message: 'OTP is required' });
+    }
+    
+    // Check OTP
+    const storedOtpData = otpStore.get(userId);
+    if (!storedOtpData) {
+      return res.status(400).json({ message: 'OTP not found or expired' });
+    }
+    
+    if (Date.now() > storedOtpData.expires) {
+      otpStore.delete(userId);
+      return res.status(400).json({ message: 'OTP has expired' });
+    }
+    
+    if (otp !== storedOtpData.otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+    
+    // OTP is valid, delete account
+    await User.findByIdAndDelete(userId);
+    await DailyReport.deleteMany({ userId });
+    await ChatHistory.deleteMany({ userId });
+    
+    // Clean up OTP
+    otpStore.delete(userId);
+    
+    res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }

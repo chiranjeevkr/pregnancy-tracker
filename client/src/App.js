@@ -117,11 +117,11 @@ function App() {
             />
             <Route 
               path="/dashboard" 
-              element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
+              element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/profile" 
-              element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/login" />} 
+              element={user ? <Profile user={user} setUser={setUser} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/daily-report" 

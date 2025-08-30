@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { 
   Typography, Card, CardContent, Grid, Box, 
   AppBar, Toolbar, Avatar, Badge, IconButton,
-  useTheme, useMediaQuery
+  Menu, MenuItem, ListItemIcon, ListItemText
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { 
   Assignment, Chat, FitnessCenter, Games, 
   LocalHospital, Emergency, Notifications,
-  Menu as MenuIcon, Woman
+  Menu as MenuIcon, Woman, Person, Logout
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/system';
 
@@ -97,12 +97,30 @@ const ProgressBar = styled('div')(({ theme, progress }) => ({
   }
 }));
 
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [weekInfo, setWeekInfo] = useState('');
-  const [notificationsCount, setNotificationsCount] = useState(2);
+  const [notificationsCount] = useState(2);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleAvatarClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleProfile = () => {
+    handleClose();
+    navigate('/profile');
+  };
+
+  const handleLogout = () => {
+    handleClose();
+    onLogout();
+  };
 
   useEffect(() => {
     // Set up daily notification reminder
@@ -212,12 +230,61 @@ const Dashboard = ({ user }) => {
               <Notifications />
             </Badge>
           </IconButton>
-          <Avatar 
-            sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40 }}
-            src={user.avatar}
+          <IconButton onClick={handleAvatarClick}>
+            <Avatar 
+              sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40 }}
+              src={user.avatar}
+            >
+              {user.name.charAt(0)}
+            </Avatar>
+          </IconButton>
+          <Menu
+            anchorEl={anchorEl}
+            open={open}
+            onClose={handleClose}
+            onClick={handleClose}
+            PaperProps={{
+              elevation: 0,
+              sx: {
+                overflow: 'visible',
+                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                mt: 1.5,
+                '& .MuiAvatar-root': {
+                  width: 32,
+                  height: 32,
+                  ml: -0.5,
+                  mr: 1,
+                },
+                '&:before': {
+                  content: '""',
+                  display: 'block',
+                  position: 'absolute',
+                  top: 0,
+                  right: 14,
+                  width: 10,
+                  height: 10,
+                  bgcolor: 'background.paper',
+                  transform: 'translateY(-50%) rotate(45deg)',
+                  zIndex: 0,
+                },
+              },
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            {user.name.charAt(0)}
-          </Avatar>
+            <MenuItem onClick={handleProfile}>
+              <ListItemIcon>
+                <Person fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Profile</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={handleLogout}>
+              <ListItemIcon>
+                <Logout fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Logout</ListItemText>
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </StyledAppBar>
 
