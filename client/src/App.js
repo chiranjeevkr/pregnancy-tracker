@@ -20,13 +20,13 @@ import './App.css';
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#ff6b9d',
+      main: '#e91e63',
     },
     secondary: {
-      main: '#ffc1cc',
+      main: '#f44336',
     },
     background: {
-      default: '#fff0f5',
+      default: '#ffebee',
     },
   },
   typography: {

@@ -18,7 +18,7 @@ const Navbar = ({ user, onLogout }) => {
   ];
 
   return (
-    <AppBar position="static" sx={{ background: 'linear-gradient(45deg, #ff6b9d, #ffc1cc)' }}>
+    <AppBar position="static" sx={{ background: 'linear-gradient(45deg, #e91e63, #f44336)' }}>
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1, color: 'white' }}>
           Pregnancy Tracker
