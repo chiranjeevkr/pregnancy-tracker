@@ -1,4 +1,4 @@
-git pull https://github.com/Roh-its/pregnancy-tracker.git maingit pull https://github.com/Roh-its/pregnancy-tracker.git mainimport React from 'react';
+import React from 'react';
 import { Typography, Button, Box } from '@mui/material';
 
 const DailyRoutinePopup = ({ user, onClose }) => {

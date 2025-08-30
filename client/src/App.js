@@ -121,7 +121,7 @@ function App() {
             />
             <Route 
               path="/profile" 
-              element={user ? <Profile user={user} setUser={setUser} onLogout={handleLogout} /> : <Navigate to="/login" />} 
+              element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/daily-report" 
