@@ -83,7 +83,7 @@ const Game = () => {
     }, 5000);
 
     return () => clearInterval(tipInterval);
-  }, []);
+  }, [relaxationTips.length]);
 
   return (
     <div className="game-container">

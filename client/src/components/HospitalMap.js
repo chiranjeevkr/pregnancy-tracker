@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Typography, Card, CardContent, Button, Box, TextField, List, ListItem, ListItemText, ListItemSecondaryAction } from '@mui/material';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Typography, Card, CardContent, Button, Box, TextField, List, ListItem, ListItemText } from '@mui/material';
 import { LocationOn, Phone, Language, Directions } from '@mui/icons-material';
 
 const HospitalMap = () => {
@@ -9,7 +9,7 @@ const HospitalMap = () => {
   const [loading, setLoading] = useState(false);
 
   // Sample hospital data (in a real app, this would come from an API)
-  const sampleHospitals = [
+  const sampleHospitals = useMemo(() => [
     {
       id: 1,
       name: 'City General Hospital',
@@ -50,12 +50,12 @@ const HospitalMap = () => {
       distance: '5.0 miles',
       rating: 4.6
     }
-  ];
+  ], []);
 
   useEffect(() => {
     getCurrentLocation();
     setHospitals(sampleHospitals);
-  }, []);
+  }, [sampleHospitals]);
 
   const getCurrentLocation = () => {
     if (navigator.geolocation) {

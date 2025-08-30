@@ -6,8 +6,15 @@ const jwt = require('jsonwebtoken');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Gemini AI (optional)
+let genAI;
+try {
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your-gemini-api-key-here') {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  }
+} catch (error) {
+  console.log('Gemini AI initialization failed:', error.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,11 +23,21 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/pregnancy-tracker', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// MongoDB connection with error handling
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/pregnancy-tracker', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('MongoDB connected successfully');
+  } catch (error) {
+    console.log('MongoDB connection failed:', error.message);
+    console.log('Server will continue without database...');
+  }
+};
+
+connectDB();
 
 // User Schema
 const userSchema = new mongoose.Schema({
@@ -87,6 +104,11 @@ app.post('/api/register', async (req, res) => {
   try {
     const { name, email, phone, password, pregnancyWeeks } = req.body;
     
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: 'Database not available. Please try again later.' });
+    }
+    
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
@@ -110,13 +132,19 @@ app.post('/api/register', async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret');
     res.status(201).json({ token, user: { id: user._id, name, email, currentWeek: pregnancyWeeks } });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Registration failed: ' + error.message });
   }
 });
 
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: 'Database not available. Please try again later.' });
+    }
     
     const user = await User.findOne({ email });
     if (!user) {
@@ -137,7 +165,8 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret');
     res.json({ token, user: { id: user._id, name: user.name, email, currentWeek: user.currentWeek } });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Login failed: ' + error.message });
   }
 });
 

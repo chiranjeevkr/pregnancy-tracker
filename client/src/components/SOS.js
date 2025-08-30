@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Button, Card, CardContent, Box, Alert, TextField } from '@mui/material';
-import { Phone, LocalHospital, Warning, Add } from '@mui/icons-material';
+import { Phone, Add } from '@mui/icons-material';
 import axios from 'axios';
 
 const SOS = ({ user }) => {

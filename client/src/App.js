@@ -14,6 +14,7 @@ import SOS from './components/SOS';
 import HospitalMap from './components/HospitalMap';
 import Navbar from './components/Navbar';
 import WelcomePopup from './components/WelcomePopup';
+import DailyRoutinePopup from './components/DailyRoutinePopup';
 import './App.css';
 
 const theme = createTheme({
@@ -43,14 +44,20 @@ const theme = createTheme({
 function App() {
   const [user, setUser] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showDailyRoutine, setShowDailyRoutine] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
+    const lastRoutineCheck = localStorage.getItem('lastRoutineCheck');
+    const today = new Date().toDateString();
     
     if (token && userData) {
       setUser(JSON.parse(userData));
-      setShowWelcome(true);
+      // Show welcome popup for returning users, but only show routine popup if not shown today
+      if (lastRoutineCheck !== today) {
+        setShowWelcome(true);
+      }
     }
   }, []);
 
@@ -59,6 +66,17 @@ function App() {
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
     setShowWelcome(true);
+  };
+
+  const handleWelcomeClose = () => {
+    setShowWelcome(false);
+    setShowDailyRoutine(true);
+  };
+
+  const handleDailyRoutineClose = () => {
+    setShowDailyRoutine(false);
+    // Mark that routine popup was shown today
+    localStorage.setItem('lastRoutineCheck', new Date().toDateString());
   };
 
   const handleLogout = () => {
@@ -77,7 +95,14 @@ function App() {
           {showWelcome && user && (
             <WelcomePopup 
               user={user} 
-              onClose={() => setShowWelcome(false)} 
+              onClose={handleWelcomeClose} 
+            />
+          )}
+          
+          {showDailyRoutine && user && (
+            <DailyRoutinePopup 
+              user={user} 
+              onClose={handleDailyRoutineClose} 
             />
           )}
           
