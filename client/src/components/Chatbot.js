@@ -1,19 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { TextField, Button, Typography, Box, Paper, Tabs, Tab, Card, CardContent } from '@mui/material';
-import { Send, History, Chat } from '@mui/icons-material';
+import { TextField, Button, Typography, Box, Paper, Tabs, Tab, Card, CardContent, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Rating } from '@mui/material';
+import { Send, History, Chat, ThumbUp, ThumbDown, Feedback } from '@mui/icons-material';
 import axios from 'axios';
+import SharedNavigation from './SharedNavigation';
 
-const Chatbot = () => {
+const Chatbot = ({ user }) => {
   const [messages, setMessages] = useState([
     {
       type: 'bot',
-      text: 'Hello! I\'m Dr. AI, your virtual pregnancy healthcare provider. I\'m here to provide medical guidance and answer your maternal health questions. How can I assist you today?'
+      text: 'Hello! I\'m Dr. AI, your pregnancy doctor. I\'m here to help answer your questions and give you simple, easy-to-understand advice.\n\nI can help with:\n• Pregnancy symptoms\n• What to eat and avoid\n• Safe exercises\n• When to call your doctor\n• Common pregnancy concerns\n\nRemember: I give general advice, but always talk to your own doctor about your specific situation.\n\nWhat would you like to know about your pregnancy?'
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [tabValue, setTabValue] = useState(0);
+  const [feedbackDialog, setFeedbackDialog] = useState(false);
+  const [selectedTrainingId, setSelectedTrainingId] = useState(null);
+  const [feedbackRating, setFeedbackRating] = useState(3);
+  const [feedbackText, setFeedbackText] = useState('');
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -53,7 +58,11 @@ const Chatbot = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      const botMessage = { type: 'bot', text: response.data.response };
+      const botMessage = { 
+        type: 'bot', 
+        text: response.data.response,
+        trainingId: response.data.trainingId 
+      };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       const errorMessage = { 
@@ -66,6 +75,36 @@ const Chatbot = () => {
     }
   };
 
+  const handleFeedback = (trainingId, isHelpful) => {
+    setSelectedTrainingId(trainingId);
+    setFeedbackRating(isHelpful ? 4 : 2);
+    setFeedbackDialog(true);
+  };
+
+  const submitFeedback = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const feedback = feedbackRating >= 3 ? 'helpful' : 'not_helpful';
+      
+      await axios.post(
+        'http://localhost:5000/api/ai-feedback',
+        {
+          trainingId: selectedTrainingId,
+          feedback,
+          accuracy: feedbackRating,
+          suggestions: feedbackText
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setFeedbackDialog(false);
+      setFeedbackText('');
+      setSelectedTrainingId(null);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -74,14 +113,20 @@ const Chatbot = () => {
   };
 
   const quickQuestions = [
-    'I have morning sickness, what should I do?',
-    'Is it safe to exercise during pregnancy?',
-    'What foods should I avoid during pregnancy?',
-    'I have back pain, is this normal?',
+    'I feel sick and can\'t eat anything',
+    'Is it safe to exercise?',
+    'What foods should I avoid?',
+    'My back hurts, is this normal?',
     'How much weight should I gain?',
-    'I feel anxious about my pregnancy',
-    'What medications are safe during pregnancy?',
-    'I have headaches, should I be worried?'
+    'I feel worried about my pregnancy',
+    'Can I take medicine while pregnant?',
+    'I have headaches often',
+    'I have heartburn, what helps?',
+    'I\'m constipated, what can I do?',
+    'My discharge looks different',
+    'I feel dizzy sometimes',
+    'My baby isn\'t moving much today',
+    'My hands and feet are swollen'
   ];
 
   const handleQuickQuestion = (question) => {
@@ -89,7 +134,9 @@ const Chatbot = () => {
   };
 
   return (
-    <div className="chatbot-container">
+    <>
+      <SharedNavigation user={user} />
+      <div className="chatbot-container">
       <Typography variant="h4" gutterBottom className="text-dark">
         Dr. AI - Maternal Health Consultant 👩‍⚕️
       </Typography>
@@ -112,6 +159,24 @@ const Chatbot = () => {
                 <Typography variant="body1">
                   {message.text}
                 </Typography>
+                {message.type === 'bot' && message.trainingId && (
+                  <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleFeedback(message.trainingId, true)}
+                      sx={{ color: 'green' }}
+                    >
+                      <ThumbUp fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleFeedback(message.trainingId, false)}
+                      sx={{ color: 'red' }}
+                    >
+                      <ThumbDown fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
               </div>
             ))}
             {loading && (
@@ -206,7 +271,35 @@ const Chatbot = () => {
       <Typography variant="caption" sx={{ mt: 2, display: 'block' }} className="text-dark">
         ⚠️ Medical Disclaimer: Dr. AI provides general medical information based on common pregnancy guidelines. This is not a substitute for professional medical advice. Always consult your healthcare provider for personalized medical guidance and urgent concerns.
       </Typography>
+
+      <Dialog open={feedbackDialog} onClose={() => setFeedbackDialog(false)}>
+        <DialogTitle>Help Improve Dr. AI</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            How helpful was this response?
+          </Typography>
+          <Rating
+            value={feedbackRating}
+            onChange={(event, newValue) => setFeedbackRating(newValue)}
+            size="large"
+          />
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            placeholder="Any suggestions to improve the response?"
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setFeedbackDialog(false)}>Cancel</Button>
+          <Button onClick={submitFeedback} variant="contained">Submit</Button>
+        </DialogActions>
+      </Dialog>
     </div>
+    </>
   );
 };
 

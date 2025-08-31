@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Typography, Button, Card, CardContent, Box, Alert } from '@mui/material';
 import { Refresh, EmojiEvents } from '@mui/icons-material';
+import SharedNavigation from './SharedNavigation';
 
-const Game = () => {
+const Game = ({ user }) => {
   const [cards, setCards] = useState([]);
   const [flippedCards, setFlippedCards] = useState([]);
   const [matchedCards, setMatchedCards] = useState([]);
@@ -86,7 +87,9 @@ const Game = () => {
   }, [relaxationTips.length]);
 
   return (
-    <div className="game-container">
+    <>
+      <SharedNavigation user={user} />
+      <div className="game-container">
       <Typography variant="h4" gutterBottom className="text-dark">
         Stress Relief Memory Game 🧠
       </Typography>
@@ -191,6 +194,7 @@ const Game = () => {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 };
 

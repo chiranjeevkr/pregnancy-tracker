@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TextField, Button, Typography, Box, Card, CardContent, Alert } from '@mui/material';
 import axios from 'axios';
+import SharedNavigation from './SharedNavigation';
 
 const Profile = ({ user, setUser }) => {
   const [formData, setFormData] = useState({
@@ -76,17 +77,27 @@ const Profile = ({ user, setUser }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setUser({ ...user, ...response.data });
+      // Update user state and localStorage
+      const updatedUser = { ...user, ...response.data };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
       setMessage('Profile updated successfully!');
+      
+      // Refresh profile data to get updated values
+      setTimeout(() => {
+        fetchProfile();
+      }, 1000);
     } catch (error) {
-      setMessage('Error updating profile');
+      setMessage('Error updating profile: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="dashboard-container">
+    <>
+      <SharedNavigation user={user} />
+      <div className="dashboard-container">
       <Typography variant="h4" gutterBottom className="text-dark">
         My Profile
       </Typography>
@@ -103,50 +114,48 @@ const Profile = ({ user, setUser }) => {
             Personal Information
           </Typography>
           
-          <Box component="form" onSubmit={handleSubmit}>
-            <TextField
-              fullWidth
-              label="Full Name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              className="form-input"
-              InputLabelProps={{ style: { color: '#2c2c2c' } }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="form-input"
-              InputLabelProps={{ style: { color: '#2c2c2c' } }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Phone Number"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="form-input"
-              InputLabelProps={{ style: { color: '#2c2c2c' } }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Current Week of Pregnancy"
-              name="currentWeek"
-              type="number"
-              value={formData.currentWeek}
-              onChange={handleChange}
-              inputProps={{ min: 1, max: 40 }}
-              className="form-input"
-              InputLabelProps={{ style: { color: '#2c2c2c' } }}
-            />
-          </Box>
+          <TextField
+            fullWidth
+            label="Full Name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            className="form-input"
+            InputLabelProps={{ style: { color: '#2c2c2c' } }}
+          />
+          
+          <TextField
+            fullWidth
+            label="Email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="form-input"
+            InputLabelProps={{ style: { color: '#2c2c2c' } }}
+          />
+          
+          <TextField
+            fullWidth
+            label="Phone Number"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            className="form-input"
+            InputLabelProps={{ style: { color: '#2c2c2c' } }}
+          />
+          
+          <TextField
+            fullWidth
+            label="Current Week of Pregnancy"
+            name="currentWeek"
+            type="number"
+            value={formData.currentWeek}
+            onChange={handleChange}
+            inputProps={{ min: 1, max: 40 }}
+            className="form-input"
+            InputLabelProps={{ style: { color: '#2c2c2c' } }}
+          />
         </CardContent>
       </Card>
 
@@ -248,6 +257,7 @@ const Profile = ({ user, setUser }) => {
         {loading ? 'Updating...' : 'Update Profile'}
       </Button>
     </div>
+    </>
   );
 };
 

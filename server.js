@@ -4,17 +4,42 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { HfInference } = require('@huggingface/inference');
 const nodemailer = require('nodemailer');
+const axios = require('axios');
+const medicalKnowledgeBase = require('./medical-knowledge-base');
+const { collectTrainingData, updateTrainingFeedback, getPersonalizedPatterns } = require('./ai-training-system');
 require('dotenv').config();
 
-// Initialize Gemini AI (optional)
-let genAI;
+// Initialize Hugging Face (FREE)
+let hf;
 try {
-  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your-gemini-api-key-here') {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  if (process.env.HUGGINGFACE_API_KEY && process.env.HUGGINGFACE_API_KEY !== 'your-free-huggingface-token-here') {
+    hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+    console.log('Hugging Face AI initialized successfully (FREE)');
+  } else {
+    console.log('Hugging Face API key not found - using free tier without key');
+    hf = new HfInference(); // Free tier without API key
   }
 } catch (error) {
-  console.log('Gemini AI initialization failed:', error.message);
+  console.log('Hugging Face initialization failed:', error.message);
+}
+
+// Initialize Gemini AI
+let genAI;
+try {
+  const apiKey = process.env.GEMINI_API_KEY;
+  console.log('Gemini API Key present:', !!apiKey);
+  console.log('API Key starts with:', apiKey ? apiKey.substring(0, 10) + '...' : 'none');
+  
+  if (apiKey && apiKey !== 'your-gemini-api-key-here' && apiKey.length > 10) {
+    genAI = new GoogleGenerativeAI(apiKey);
+    console.log('✅ Gemini AI initialized successfully');
+  } else {
+    console.log('❌ Invalid or missing Gemini API key');
+  }
+} catch (error) {
+  console.log('❌ Gemini AI initialization failed:', error.message);
 }
 
 // Email transporter
@@ -63,12 +88,14 @@ const userSchema = new mongoose.Schema({
   emergencyContacts: [{
     name: String,
     phone: String,
-    relation: String
+    relation: String,
+    countryCode: String
   }],
   doctorContact: {
     name: String,
     phone: String,
-    hospital: String
+    hospital: String,
+    countryCode: String
   },
   createdAt: { type: Date, default: Date.now }
 });
@@ -82,8 +109,11 @@ const dailyReportSchema = new mongoose.Schema({
   weight: Number,
   currentWeek: Number,
   mood: String,
-  situation: String,
-  healthScore: Number
+  notes: String,
+  healthScore: Number,
+  riskPercentage: Number,
+  aiReport: String,
+  reportGenerated: { type: Boolean, default: false }
 });
 
 // Chat History Schema
@@ -195,16 +225,32 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 app.put('/api/profile', authenticateToken, async (req, res) => {
   try {
     const updates = req.body;
+    
+    // If currentWeek is being updated, recalculate pregnancyStartDate
+    if (updates.currentWeek) {
+      const currentWeek = parseInt(updates.currentWeek);
+      const pregnancyStartDate = new Date();
+      pregnancyStartDate.setDate(pregnancyStartDate.getDate() - ((currentWeek - 1) * 7));
+      updates.pregnancyStartDate = pregnancyStartDate;
+    }
+    
     const user = await User.findByIdAndUpdate(req.user.userId, updates, { new: true }).select('-password');
     res.json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Profile update error:', error);
+    res.status(500).json({ message: 'Server error: ' + error.message });
   }
 });
 
 app.post('/api/daily-report', authenticateToken, async (req, res) => {
   try {
+    const user = await User.findById(req.user.userId);
     const reportData = { ...req.body, userId: req.user.userId };
+    
+    // Auto-calculate current week
+    const now = new Date();
+    const weeksPassed = Math.floor((now - user.pregnancyStartDate) / (7 * 24 * 60 * 60 * 1000));
+    reportData.currentWeek = Math.min(weeksPassed + 1, 40);
     
     // Calculate health score based on inputs
     let healthScore = 100;
@@ -217,11 +263,194 @@ app.post('/api/daily-report', authenticateToken, async (req, res) => {
     const report = new DailyReport(reportData);
     await report.save();
     
+    // Generate AI report
+    try {
+      const aiResponse = await generateHealthReport(user, reportData);
+      
+      // Extract risk percentage from AI response
+      const riskMatch = aiResponse.match(/RISK_PERCENTAGE:\s*(\d+)/i);
+      if (riskMatch) {
+        report.riskPercentage = parseInt(riskMatch[1]);
+        // Remove the risk percentage line from the report text
+        report.aiReport = aiResponse.replace(/RISK_PERCENTAGE:\s*\d+\s*/i, '').trim();
+      } else {
+        // Fallback risk calculation if AI doesn't provide it
+        report.riskPercentage = calculateFallbackRisk(reportData);
+        report.aiReport = aiResponse;
+      }
+      
+      report.reportGenerated = true;
+      await report.save();
+    } catch (aiError) {
+      console.error('AI report generation failed:', aiError);
+      report.aiReport = 'AI report generation failed. Please try again later.';
+      report.riskPercentage = calculateFallbackRisk(reportData);
+      await report.save();
+    }
+    
     res.status(201).json(report);
   } catch (error) {
+    console.error('Daily report error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Generate AI Health Report
+async function generateHealthReport(user, reportData) {
+  if (!genAI) {
+    return generateFallbackReport(user, reportData);
+  }
+  
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const prompt = `You are Dr. AI, a maternal health specialist. Analyze this pregnancy health data and provide:
+1. RISK PERCENTAGE (0-100) based on the health metrics
+2. Comprehensive health report
+
+Patient: ${user.name}
+Pregnancy Week: ${reportData.currentWeek}
+Trimester: ${Math.ceil(reportData.currentWeek / 13.33)}
+
+Health Data:
+- Blood Pressure: ${reportData.bloodPressure.systolic}/${reportData.bloodPressure.diastolic} mmHg
+- Blood Sugar: ${reportData.bloodSugar} mg/dL
+- Weight: ${reportData.weight} lbs
+- Mood: ${reportData.mood}
+- Notes: ${reportData.notes || 'None'}
+- Health Score: ${reportData.healthScore}/100
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+RISK_PERCENTAGE: [number 0-100]
+
+[Your detailed health analysis here]
+
+Risk Assessment Guidelines:
+- 0-20%: Low risk (normal values, good mood)
+- 21-40%: Mild risk (slightly elevated values)
+- 41-60%: Moderate risk (concerning values, stress)
+- 61-80%: High risk (multiple elevated values)
+- 81-100%: Very high risk (dangerous values requiring immediate attention)
+
+Consider: Blood pressure >140/90, blood sugar >140, stress/anxiety, pregnancy week complications.
+
+Provide detailed analysis covering:
+1. Current Health Analysis
+2. Body Changes This Week
+3. Specific Recommendations
+4. When to Contact Doctor
+5. Encouragement`;
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+    
+  } catch (error) {
+    console.error('Gemini AI error:', error);
+    return generateFallbackReport(user, reportData);
+  }
+}
+
+// Fallback risk calculation
+function calculateFallbackRisk(reportData) {
+  let risk = 10; // Base low risk
+  
+  // Blood pressure risk
+  if (reportData.bloodPressure.systolic >= 160 || reportData.bloodPressure.diastolic >= 100) {
+    risk += 40; // Severe hypertension
+  } else if (reportData.bloodPressure.systolic >= 140 || reportData.bloodPressure.diastolic >= 90) {
+    risk += 25; // Mild hypertension
+  } else if (reportData.bloodPressure.systolic >= 130 || reportData.bloodPressure.diastolic >= 85) {
+    risk += 10; // Elevated
+  }
+  
+  // Blood sugar risk
+  if (reportData.bloodSugar >= 180) {
+    risk += 30; // Very high
+  } else if (reportData.bloodSugar >= 140) {
+    risk += 20; // High
+  } else if (reportData.bloodSugar >= 120) {
+    risk += 10; // Elevated
+  }
+  
+  // Mood risk
+  if (reportData.mood === 'Stressed' || reportData.mood === 'Anxious') {
+    risk += 15;
+  } else if (reportData.mood === 'Tired') {
+    risk += 5;
+  }
+  
+  // Pregnancy week specific risks
+  if (reportData.currentWeek < 12 && (reportData.bloodPressure.systolic > 140 || reportData.bloodSugar > 140)) {
+    risk += 10; // Early pregnancy complications
+  }
+  if (reportData.currentWeek > 32 && reportData.bloodPressure.systolic > 140) {
+    risk += 15; // Late pregnancy hypertension
+  }
+  
+  return Math.min(risk, 100); // Cap at 100%
+}
+
+// Fallback report generation
+function generateFallbackReport(user, reportData) {
+  const trimester = Math.ceil(reportData.currentWeek / 13.33);
+  
+  let report = `# Health Report for ${user.name}\n`;
+  report += `**Date:** ${new Date().toLocaleDateString()}\n`;
+  report += `**Pregnancy Week:** ${reportData.currentWeek} (Trimester ${trimester})\n\n`;
+  
+  report += `## Current Health Analysis\n`;
+  report += `- **Blood Pressure:** ${reportData.bloodPressure.systolic}/${reportData.bloodPressure.diastolic} mmHg `;
+  if (reportData.bloodPressure.systolic > 140 || reportData.bloodPressure.diastolic > 90) {
+    report += `(⚠️ Elevated - Monitor closely)\n`;
+  } else {
+    report += `(✅ Normal range)\n`;
+  }
+  
+  report += `- **Blood Sugar:** ${reportData.bloodSugar} mg/dL `;
+  if (reportData.bloodSugar > 140) {
+    report += `(⚠️ High - Dietary adjustments needed)\n`;
+  } else {
+    report += `(✅ Good level)\n`;
+  }
+  
+  report += `- **Weight:** ${reportData.weight} lbs\n`;
+  report += `- **Mood:** ${reportData.mood}\n`;
+  report += `- **Overall Health Score:** ${reportData.healthScore}/100\n\n`;
+  
+  report += `## What's Happening This Week\n`;
+  if (trimester === 1) {
+    report += `During week ${reportData.currentWeek}, your baby is rapidly developing. You may experience morning sickness, fatigue, and breast tenderness.\n\n`;
+  } else if (trimester === 2) {
+    report += `Week ${reportData.currentWeek} brings increased energy and reduced nausea. Your baby is growing quickly and you may start feeling movements.\n\n`;
+  } else {
+    report += `At week ${reportData.currentWeek}, your baby is preparing for birth. You may experience increased discomfort and Braxton Hicks contractions.\n\n`;
+  }
+  
+  report += `## Recommendations\n`;
+  if (reportData.bloodPressure.systolic > 140) {
+    report += `- Monitor blood pressure daily and reduce salt intake\n`;
+  }
+  if (reportData.bloodSugar > 140) {
+    report += `- Follow diabetic diet and monitor blood sugar regularly\n`;
+  }
+  if (reportData.mood === 'stressed' || reportData.mood === 'anxious') {
+    report += `- Practice relaxation techniques and consider prenatal yoga\n`;
+  }
+  report += `- Continue prenatal vitamins\n`;
+  report += `- Stay hydrated and eat balanced meals\n`;
+  report += `- Get adequate rest and gentle exercise\n\n`;
+  
+  report += `## When to Contact Your Doctor\n`;
+  report += `- Blood pressure consistently above 140/90\n`;
+  report += `- Severe headaches or vision changes\n`;
+  report += `- Unusual bleeding or discharge\n`;
+  report += `- Severe abdominal pain\n\n`;
+  
+  report += `*This report is for informational purposes only. Always consult your healthcare provider for medical advice.*`;
+  
+  return report;
+}
 
 app.get('/api/daily-reports', authenticateToken, async (req, res) => {
   try {
@@ -232,23 +461,71 @@ app.get('/api/daily-reports', authenticateToken, async (req, res) => {
   }
 });
 
-// Enhanced Chatbot endpoint with OpenAI integration
+// Get specific report with AI analysis
+app.get('/api/daily-report/:id', authenticateToken, async (req, res) => {
+  try {
+    const report = await DailyReport.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.userId 
+    });
+    
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+    
+    res.json(report);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Personalized AI Chatbot endpoint with user data integration
 app.post('/api/chatbot', authenticateToken, async (req, res) => {
   try {
     const { message } = req.body;
     
+    // Get user data for personalization
+    const user = await User.findById(req.user.userId);
+    
+    // Always recalculate current week to ensure accuracy
+    const now = new Date();
+    const weeksPassed = Math.floor((now - user.pregnancyStartDate) / (7 * 24 * 60 * 60 * 1000));
+    const actualCurrentWeek = Math.min(weeksPassed + 1, 40);
+    
+    // Update user's current week if it's different
+    if (user.currentWeek !== actualCurrentWeek) {
+      user.currentWeek = actualCurrentWeek;
+      await user.save();
+    }
+    
+    const recentReports = await DailyReport.find({ userId: req.user.userId })
+      .sort({ date: -1 })
+      .limit(7); // Last 7 days
+    
     let response;
     
-    // Try Gemini AI first, fallback to local responses
-    if (process.env.GEMINI_API_KEY) {
+    // FORCE ALL QUESTIONS TO GEMINI AI FIRST
+    if (genAI) {
       try {
-        response = await getGeminiResponse(message);
+        console.log('Sending to Gemini AI:', message);
+        response = await getPersonalizedAIResponse(message, user, recentReports);
+        console.log('✅ Gemini AI responded successfully');
+      } catch (aiError) {
+        console.log('❌ Gemini AI failed:', aiError.message);
+        // Only use local fallback if Gemini completely fails
+        response = `I'm having trouble connecting to my AI brain right now. Let me give you some basic advice: For nutrition questions at ${actualCurrentWeek} weeks, focus on iron, calcium, and protein. Always consult your doctor for specific food questions.`;
+      }
+    } else if (hf) {
+      try {
+        response = await getPersonalizedAIResponse(message, user, recentReports);
+        console.log('Response generated by Gemini AI');
       } catch (aiError) {
         console.log('Gemini AI error, using fallback:', aiError.message);
-        response = getDoctorResponse(message);
+        response = getPersonalizedDoctorResponse(message, user, recentReports);
       }
     } else {
-      response = getDoctorResponse(message);
+      // No AI available, simple fallback
+      response = `Hi ${user.name}! I'm having trouble connecting to my AI systems right now. Please try again in a moment, or consult your doctor for immediate concerns.`;
     }
     
     // Save chat history
@@ -259,37 +536,109 @@ app.post('/api/chatbot', authenticateToken, async (req, res) => {
     });
     await chatEntry.save();
     
-    res.json({ response });
+    // Collect training data for AI improvement
+    const userContext = {
+      pregnancyWeek: actualCurrentWeek,
+      trimester: Math.ceil(actualCurrentWeek / 13.33),
+      healthScore: recentReports.length > 0 ? recentReports[0].healthScore : null,
+      mood: recentReports.length > 0 ? recentReports[0].mood : null
+    };
+    
+    const trainingId = await collectTrainingData(req.user.userId, message, response, userContext);
+    
+    res.json({ response, trainingId });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Gemini AI response function
-async function getGeminiResponse(message) {
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+// FREE Hugging Face response function
+async function getHuggingFaceResponse(message, user, recentReports) {
+  try {
+    const prompt = `Question: ${message}
+
+Answer as a pregnancy doctor for ${user.name} at ${user.currentWeek} weeks. Use bullet points with • symbol:`;
+    
+    const response = await hf.textGeneration({
+      model: 'google/flan-t5-base',
+      inputs: prompt,
+      parameters: {
+        max_new_tokens: 150,
+        temperature: 0.3,
+        do_sample: true
+      }
+    });
+    
+    if (response && response.generated_text) {
+      return response.generated_text.trim();
+    }
+    
+    // If no response, throw error to use fallback
+    throw new Error('No response from Hugging Face');
+    
+  } catch (error) {
+    console.log('Hugging Face API error:', error.message);
+    throw error; // Re-throw to trigger fallback
+  }
+}
+
+// Gemini AI response function - handles ANY question
+async function getPersonalizedAIResponse(message, user, recentReports) {
+  try {
+    console.log('🤖 Calling Gemini AI with message:', message);
+    
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const prompt = `You are Dr. AI, a pregnancy doctor. Give SHORT, simple answers.
+
+Patient: ${user.name}, ${user.currentWeek} weeks pregnant
+Question: "${message}"
+
+RULES:
+• Keep answer under 100 words
+• Use 3-4 bullet points maximum
+• Start with "Hi ${user.name}!"
+• Be direct and helpful
+• Add "Call doctor if serious symptoms" at end
+
+Response:`;
+    
+    console.log('📝 Sending prompt to Gemini...');
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('✅ Gemini responded with:', text.substring(0, 100) + '...');
+    return text;
+    
+  } catch (error) {
+    console.log('❌ Gemini AI Error Details:');
+    console.log('Error message:', error.message);
+    console.log('Error code:', error.code);
+    console.log('Full error:', error);
+    throw error;
+  }
+}
+
+// Build personalized context from user data
+function buildUserContext(user, recentReports) {
+  const currentWeek = user.currentWeek;
+  const weeklyInfo = medicalKnowledgeBase.weeklyGuidance[currentWeek] || {};
   
-  const prompt = `You are Dr. AI, a specialized maternal health consultant and pregnancy expert. You provide professional, compassionate, and evidence-based medical guidance for pregnant women.
-
-Guidelines:
-- Always respond as a healthcare professional
-- Provide specific, actionable medical advice
-- Include safety warnings when appropriate
-- Mention when to seek immediate medical attention
-- Use professional medical terminology but explain it clearly
-- Be empathetic and supportive
-- Always include disclaimers for serious symptoms
-- Focus specifically on pregnancy, maternal health, and prenatal care
-
-Important: Always remind patients that this is general guidance and they should consult their healthcare provider for personalized medical advice, especially for urgent concerns.
-
-Patient Question: ${message}
-
-Dr. AI Response:`;
+  let context = `Name: ${user.name}\n`;
+  context += `Current Week: ${currentWeek} (${weeklyInfo.trimester ? 'Trimester ' + weeklyInfo.trimester : 'Unknown trimester'})\n`;
+  context += `Focus This Week: ${weeklyInfo.focus || 'General pregnancy care'}\n`;
   
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-  return response.text();
+  if (recentReports.length > 0) {
+    const latestReport = recentReports[0];
+    context += `Recent Health Data:\n`;
+    context += `- Blood Pressure: ${latestReport.bloodPressure?.systolic}/${latestReport.bloodPressure?.diastolic}\n`;
+    context += `- Weight: ${latestReport.weight} lbs\n`;
+    context += `- Mood: ${latestReport.mood}\n`;
+    context += `- Health Score: ${latestReport.healthScore}/100\n`;
+  }
+  
+  return context;
 }
 
 // Get chat history
@@ -299,6 +648,19 @@ app.get('/api/chat-history', authenticateToken, async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50);
     res.json(chatHistory);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// AI Training Feedback endpoint
+app.post('/api/ai-feedback', authenticateToken, async (req, res) => {
+  try {
+    const { trainingId, feedback, accuracy, suggestions } = req.body;
+    
+    await updateTrainingFeedback(trainingId, feedback, accuracy, suggestions);
+    
+    res.json({ message: 'Feedback recorded successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -390,23 +752,128 @@ app.delete('/api/delete-account', authenticateToken, async (req, res) => {
   }
 });
 
-// Doctor-like response function
-function getDoctorResponse(message) {
+// Personalized doctor response function using medical knowledge base
+function getPersonalizedDoctorResponse(message, user, recentReports) {
+  const currentWeek = user.currentWeek;
+  const weeklyInfo = medicalKnowledgeBase.weeklyGuidance[currentWeek] || {};
+  const trimester = Math.ceil(currentWeek / 13.33);
+  
+  return getPersonalizedResponse(message, user.name, currentWeek, trimester, recentReports);
+}
+
+// Enhanced response function with personalization
+function getPersonalizedResponse(message, userName, currentWeek, trimester, recentReports) {
   const msg = message.toLowerCase();
+  const weeklyInfo = medicalKnowledgeBase.weeklyGuidance[currentWeek] || {};
   
-  // Nausea and Morning Sickness
-  if (msg.includes('nausea') || msg.includes('morning sickness') || msg.includes('vomit')) {
-    return "As your healthcare provider, I understand morning sickness can be challenging. This is very common, affecting 70-80% of pregnant women. Try eating small, frequent meals every 2-3 hours, avoid empty stomach, and consider ginger tea or crackers. Stay hydrated with small sips of water. If you're unable to keep fluids down for 24 hours or lose weight, please contact me immediately as this could indicate hyperemesis gravidarum.";
+  // Emergency symptoms
+  if (msg.includes('severe pain') || msg.includes('heavy bleeding') || msg.includes('can\'t breathe') || msg.includes('chest pain') || msg.includes('severe headache')) {
+    return `🚨 ${userName}, this sounds serious. Please go to the hospital right away or call 911. Don't wait - your safety and your baby's safety come first.`;
   }
   
-  // Exercise and Physical Activity
-  if (msg.includes('exercise') || msg.includes('workout') || msg.includes('physical activity')) {
-    return "Exercise during pregnancy is excellent for both you and your baby. I recommend 150 minutes of moderate-intensity exercise weekly. Safe activities include walking, swimming, prenatal yoga, and stationary cycling. Avoid contact sports, activities with fall risk, and lying flat on your back after first trimester. Listen to your body - if you feel dizzy, short of breath, or experience chest pain, stop immediately and rest.";
+  // Personalized morning sickness response
+  if (msg.includes('nausea') || msg.includes('morning sickness') || msg.includes('vomit') || msg.includes('sick')) {
+    const symptomInfo = medicalKnowledgeBase.symptoms['morning sickness'];
+    const personalizedTip = symptomInfo.personalizedTips(currentWeek);
+    
+    let response = `Hi ${userName}! At ${currentWeek} weeks, ${personalizedTip.toLowerCase()}.\n\n`;
+    response += `What helps:\n• Eat small meals every 2-3 hours\n• Keep crackers by your bed\n• Try ginger tea or ginger candies\n• Sip water slowly throughout the day\n• Avoid strong smells\n\n`;
+    
+    // Add health data context if available
+    if (recentReports.length > 0 && recentReports[0].mood === 'stressed') {
+      response += `I see you've been feeling stressed lately. This can make nausea worse, so try to rest when you can.\n\n`;
+    }
+    
+    response += `Call your doctor if:\n• You can't keep water down for 24 hours\n• You're losing weight\n• You feel very weak or dizzy`;
+    
+    return response;
   }
   
-  // Nutrition and Diet
-  if (msg.includes('nutrition') || msg.includes('diet') || msg.includes('food') || msg.includes('eat')) {
-    return "Proper nutrition is crucial for your baby's development. Focus on a balanced diet with folate-rich foods (leafy greens, citrus), calcium sources (dairy, fortified foods), iron-rich foods (lean meat, beans), and omega-3 fatty acids (fish, walnuts). Take your prenatal vitamins daily. Avoid raw fish, undercooked meat, unpasteurized products, and limit caffeine to 200mg daily. Aim for 300-500 extra calories in 2nd and 3rd trimesters.";
+  // Personalized exercise response
+  if (msg.includes('exercise') || msg.includes('workout') || msg.includes('physical activity') || msg.includes('gym')) {
+    const exerciseGuidance = medicalKnowledgeBase.exercise.byTrimester[trimester];
+    
+    let response = `${userName}, exercise is great during pregnancy! At ${currentWeek} weeks: ${exerciseGuidance}\n\n`;
+    response += `Safe exercises for you:\n• Walking (best choice)\n• Swimming\n• Prenatal yoga\n• Stationary bike\n\n`;
+    
+    // Add trimester-specific advice
+    if (trimester === 1) {
+      response += `Since you're in your first trimester, start slowly and listen to your body.\n\n`;
+    } else if (trimester === 2) {
+      response += `Great news! Second trimester is the best time for exercise as your energy returns.\n\n`;
+    } else {
+      response += `In your third trimester, modify exercises as needed and avoid getting too hot.\n\n`;
+    }
+    
+    response += `Avoid:\n• Contact sports\n• Activities where you might fall\n`;
+    if (currentWeek > 12) response += `• Lying on your back\n`;
+    response += `• Getting too hot\n\n`;
+    
+    response += `Stop and call your doctor if you feel:\n• Dizzy or short of breath\n• Chest pain\n• Bleeding\n• Contractions`;
+    
+    return response;
+  }
+  
+  // Specific food questions
+  if (msg.includes('mango') || msg.includes('eat mango')) {
+    return `Yes! Mangoes are safe and healthy during pregnancy. They're rich in vitamin C, folate, and fiber - all great for you and your baby.\n\nBenefits:\n• High in vitamin C (boosts immunity)\n• Contains folate (prevents birth defects)\n• Good source of fiber (helps with constipation)\n• Natural sugars for energy\n\nJust wash them well before eating and enjoy in moderation as part of a balanced diet.`;
+  }
+  
+  if (msg.includes('banana') || msg.includes('eat banana')) {
+    return `Absolutely! Bananas are excellent during pregnancy.\n\nBenefits:\n• Rich in potassium (helps with leg cramps)\n• Contains vitamin B6 (reduces nausea)\n• Good source of fiber\n• Natural energy boost\n\nThey're especially helpful if you have morning sickness or leg cramps.`;
+  }
+  
+  if (msg.includes('fish') || msg.includes('eat fish')) {
+    return `Fish can be safe during pregnancy, but choose carefully:\n\nSafe fish (2-3 servings per week):\n• Salmon, sardines, anchovies\n• Shrimp, crab, lobster\n• Tilapia, cod, catfish\n\nAvoid:\n• Shark, swordfish, king mackerel\n• Raw fish (sushi, sashimi)\n• High-mercury fish\n\nAlways cook fish thoroughly to 145°F.`;
+  }
+  
+  if (msg.includes('cheese') || msg.includes('eat cheese')) {
+    return `Most cheese is safe during pregnancy:\n\nSafe cheeses:\n• Hard cheeses (cheddar, swiss, parmesan)\n• Pasteurized soft cheeses\n• Cream cheese, cottage cheese\n• Mozzarella, ricotta\n\nAvoid:\n• Unpasteurized soft cheeses\n• Blue cheese, brie, camembert\n• Queso fresco, feta (unless pasteurized)\n\nAlways check the label for 'pasteurized'.`;
+  }
+  
+  if (msg.includes('coffee') || msg.includes('caffeine')) {
+    return `You can have some caffeine, but limit it:\n\nSafe amount:\n• Up to 200mg per day (about 1 cup of coffee)\n• This includes tea, chocolate, and soda\n\nWhy limit caffeine:\n• Too much can increase miscarriage risk\n• Can affect baby's growth\n• May cause sleep problems\n\nTry decaf coffee or herbal teas as alternatives.`;
+  }
+  
+  // Personalized nutrition response
+  if (msg.includes('nutrition') || msg.includes('diet') || msg.includes('food') || msg.includes('eat') || msg.includes('vitamin')) {
+    const nutritionInfo = medicalKnowledgeBase.nutrition[trimester];
+    
+    let response = `${userName}, good nutrition is so important at ${currentWeek} weeks!\n\n`;
+    
+    // Trimester-specific calorie needs
+    if (trimester === 1) {
+      response += `Good news - you don't need extra calories yet in your first trimester.\n\n`;
+    } else {
+      response += `You need about ${nutritionInfo.calories} extra calories per day now.\n\n`;
+    }
+    
+    response += `Focus on these nutrients:\n`;
+    nutritionInfo.focus.forEach(nutrient => {
+      response += `• ${nutrient.charAt(0).toUpperCase() + nutrient.slice(1)}\n`;
+    });
+    
+    response += `\nEat plenty of:\n`;
+    nutritionInfo.foods.forEach(food => {
+      response += `• ${food.charAt(0).toUpperCase() + food.slice(1)}\n`;
+    });
+    
+    response += `\nAvoid:\n`;
+    nutritionInfo.avoid.forEach(item => {
+      response += `• ${item.charAt(0).toUpperCase() + item.slice(1)}\n`;
+    });
+    
+    response += `\nTake your prenatal vitamins every day!`;
+    
+    // Add personalized advice based on recent health data
+    if (recentReports.length > 0) {
+      const latestReport = recentReports[0];
+      if (latestReport.bloodPressure?.systolic > 140) {
+        response += `\n\nI noticed your blood pressure was a bit high recently. Try to limit salt and eat more potassium-rich foods like bananas.`;
+      }
+    }
+    
+    return response;
   }
   
   // Weight Gain
@@ -459,9 +926,106 @@ function getDoctorResponse(message) {
     return "It's completely normal to have concerns during pregnancy - this shows you care about your baby's health. Pregnancy anxiety affects many women. Practice relaxation techniques, stay informed but avoid excessive internet searching, maintain social connections, and don't hesitate to discuss any worries with me. If anxiety significantly impacts your daily life, we can explore additional support options including counseling.";
   }
   
-  // Default response
-  return "Thank you for your question. As your healthcare provider, I'm here to support you throughout your pregnancy journey. Every pregnancy is unique, and it's important to discuss your specific situation with me during our appointments. If you have urgent concerns, please don't hesitate to contact our office immediately. For routine questions, I'm happy to address them during your regular visits. Remember, no question is too small when it comes to your and your baby's health.";
+  // Vaginal discharge
+  if (msg.includes('discharge') || msg.includes('infection') || msg.includes('itch')) {
+    return "Some discharge is normal during pregnancy.\n\nNormal discharge is:\n• Clear or white\n• No strong smell\n• No itching\n\nCall your doctor if you have:\n• Strong fishy smell\n• Yellow or green color\n• Itching or burning\n• Blood in discharge\n\nYeast infections are common during pregnancy and can be treated safely.";
+  }
+  
+  // Heartburn
+  if (msg.includes('heartburn') || msg.includes('acid reflux') || msg.includes('indigestion')) {
+    return "Heartburn is very common during pregnancy.\n\nTo feel better:\n• Eat smaller meals more often\n• Avoid spicy and fatty foods\n• Don't lie down right after eating\n• Sleep with your head raised\n• Try Tums or Rolaids (they're safe)\n\nCall your doctor if heartburn is very bad or you can't eat.";
+  }
+  
+  // Constipation
+  if (msg.includes('constipation') || msg.includes('bowel') || msg.includes('poop')) {
+    return "Constipation is common during pregnancy.\n\nTo help:\n• Eat more fruits, vegetables, and whole grains\n• Drink lots of water (8-10 glasses daily)\n• Walk every day\n• Try prunes or prune juice\n• Ask your doctor about safe stool softeners\n\nCall your doctor if you haven't had a bowel movement for 3 days.";
+  }
+  
+  // Back pain
+  if (msg.includes('back pain') || msg.includes('backache')) {
+    return "Back pain is very common during pregnancy.\n\nTo feel better:\n• Use a pregnancy pillow when sleeping\n• Wear comfortable, low-heeled shoes\n• Try gentle stretching or prenatal yoga\n• Use a warm compress\n• Ask someone to massage your back\n\nCall your doctor if the pain is severe or goes down your leg.";
+  }
+  
+  // Headaches
+  if (msg.includes('headache') || msg.includes('head pain')) {
+    return "Headaches are common in early pregnancy.\n\nTo help:\n• Rest in a quiet, dark room\n• Put a cold compress on your head\n• Drink plenty of water\n• Eat regular meals\n• Get enough sleep\n• You can take Tylenol if needed\n\nCall your doctor right away if you have severe headaches with blurred vision or swelling.";
+  }
+  
+  // Weight gain
+  if (msg.includes('weight') || msg.includes('gain') || msg.includes('pounds')) {
+    return "Healthy weight gain depends on your starting weight.\n\nGeneral guidelines:\n• Underweight: gain 28-40 pounds\n• Normal weight: gain 25-35 pounds\n• Overweight: gain 15-25 pounds\n\nGain weight slowly and steadily. Focus on eating healthy foods, not just eating more.\n\nTalk to your doctor about what's right for you.";
+  }
+  
+  // Baby movement
+  if (msg.includes('baby movement') || msg.includes('kicks') || msg.includes('moving')) {
+    return "You'll usually feel your baby move between 16-25 weeks.\n\nAfter 28 weeks, you should feel your baby move every day.\n\nCount kicks: You should feel at least 10 movements in 2 hours.\n\nCall your doctor right away if:\n• Your baby stops moving\n• Movements become much less than usual\n• You're worried about the movements";
+  }
+  
+  // Personalized default response
+  let response = `Hi ${userName}! I'm Dr. AI, and I know you're at ${currentWeek} weeks of pregnancy.\n\n`;
+  
+  // Add week-specific guidance
+  if (weeklyInfo.focus) {
+    response += `This week's focus: ${weeklyInfo.focus}\n`;
+  }
+  if (weeklyInfo.symptoms && weeklyInfo.symptoms.length > 0) {
+    response += `Common symptoms this week: ${weeklyInfo.symptoms.join(', ')}\n`;
+  }
+  if (weeklyInfo.advice) {
+    response += `My advice: ${weeklyInfo.advice}\n\n`;
+  }
+  
+  response += `I can help you with:\n• Your pregnancy symptoms\n• What's normal at your stage\n• When to call your doctor\n• Healthy habits for you and baby\n\n`;
+  
+  // Add health data insights if available
+  if (recentReports.length > 0) {
+    const latestReport = recentReports[0];
+    response += `Based on your recent health report:\n`;
+    if (latestReport.healthScore >= 80) {
+      response += `• Your health score is great (${latestReport.healthScore}/100)!\n`;
+    } else if (latestReport.healthScore >= 60) {
+      response += `• Your health score is good (${latestReport.healthScore}/100), but we can improve it\n`;
+    } else {
+      response += `• Let's work on improving your health score (${latestReport.healthScore}/100)\n`;
+    }
+    
+    if (latestReport.mood === 'stressed' || latestReport.mood === 'anxious') {
+      response += `• I see you've been feeling ${latestReport.mood}. This is normal, but let's talk about it\n`;
+    }
+    response += `\n`;
+  }
+  
+  response += `Remember: This is personalized advice based on your data, but always talk to your own doctor about your specific situation.\n\n`;
+  response += `Call your doctor right away if you have:\n• Severe pain\n• Heavy bleeding\n• Severe headaches\n• Trouble breathing\n`;
+  if (currentWeek >= 28) {
+    response += `• Your baby stops moving\n`;
+  }
+  response += `\nWhat would you like to know about your pregnancy?`;
+  
+  return response;
 }
+
+
+
+
+
+// Test Gemini API endpoint
+app.get('/api/test-gemini', async (req, res) => {
+  if (!genAI) {
+    return res.json({ error: 'Gemini AI not initialized' });
+  }
+  
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent("Say hello in 5 words");
+    const response = await result.response;
+    const text = response.text();
+    
+    res.json({ success: true, response: text });
+  } catch (error) {
+    res.json({ error: error.message, details: error });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

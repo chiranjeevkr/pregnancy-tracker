@@ -11,8 +11,8 @@ import Chatbot from './components/Chatbot';
 import Exercise from './components/Exercise';
 import Game from './components/Game';
 import SOS from './components/SOS';
-import HospitalMap from './components/HospitalMap';
-import Navbar from './components/Navbar';
+
+
 import WelcomePopup from './components/WelcomePopup';
 import DailyRoutinePopup from './components/DailyRoutinePopup';
 import './App.css';
@@ -90,7 +90,7 @@ function App() {
       <CssBaseline />
       <Router>
         <div className="App">
-          {user && <Navbar user={user} onLogout={handleLogout} />}
+
           
           {showWelcome && user && (
             <WelcomePopup 
@@ -129,7 +129,7 @@ function App() {
             />
             <Route 
               path="/chatbot" 
-              element={user ? <Chatbot /> : <Navigate to="/login" />} 
+              element={user ? <Chatbot user={user} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/exercise" 
@@ -137,16 +137,13 @@ function App() {
             />
             <Route 
               path="/game" 
-              element={user ? <Game /> : <Navigate to="/login" />} 
+              element={user ? <Game user={user} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/sos" 
               element={user ? <SOS user={user} /> : <Navigate to="/login" />} 
             />
-            <Route 
-              path="/hospitals" 
-              element={user ? <HospitalMap /> : <Navigate to="/login" />} 
-            />
+
             <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
           </Routes>
         </div>

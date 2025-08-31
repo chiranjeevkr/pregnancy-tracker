@@ -2,15 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { 
   Typography, Card, CardContent, Grid, Box, 
   AppBar, Toolbar, Avatar, Badge, IconButton,
-  Menu, MenuItem, ListItemIcon, ListItemText
+  Drawer, List, ListItem, ListItemIcon, ListItemText, Divider,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { 
   Assignment, Chat, FitnessCenter, Games, 
   LocalHospital, Emergency, Notifications,
-  Menu as MenuIcon, Woman, Person, Logout
+  Menu as MenuIcon, Woman, Home, Person, ExitToApp
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/system';
+import axios from 'axios';
 
 // Animations
 const fadeIn = keyframes`
@@ -97,30 +99,58 @@ const ProgressBar = styled('div')(({ theme, progress }) => ({
   }
 }));
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user }) => {
   const navigate = useNavigate();
   const [weekInfo, setWeekInfo] = useState('');
-  const [notificationsCount] = useState(2);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
+  const [notifications, setNotifications] = useState([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(user);
+  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
 
-  const handleAvatarClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
+  const navigationItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: <Home /> },
+    { label: 'Profile', path: '/profile', icon: <Person /> },
+    { label: 'Daily Report', path: '/daily-report', icon: <Assignment /> },
+    { label: 'AI Chatbot', path: '/chatbot', icon: <Chat /> },
+    { label: 'Exercise Guide', path: '/exercise', icon: <FitnessCenter /> },
+    { label: 'Stress Relief', path: '/game', icon: <Games /> },
+    { label: 'Find Hospitals', path: '/hospitals', icon: <LocalHospital /> },
+    { label: 'Emergency SOS', path: '/sos', icon: <Emergency /> },
+  ];
 
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleProfile = () => {
-    handleClose();
-    navigate('/profile');
-  };
-
-  const handleLogout = () => {
-    handleClose();
-    onLogout();
-  };
+  // Fetch fresh user data and notifications on component mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('http://localhost:5000/api/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Update current user state and localStorage
+        setCurrentUser(response.data);
+        localStorage.setItem('user', JSON.stringify(response.data));
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        // If fetch fails, use the user prop
+        setCurrentUser(user);
+      }
+    };
+    
+    // Load notifications from localStorage
+    const loadNotifications = () => {
+      const storedNotifications = JSON.parse(localStorage.getItem('healthNotifications') || '[]');
+      setNotifications(storedNotifications);
+    };
+    
+    fetchUserData();
+    loadNotifications();
+    
+    // Set up interval to check for new notifications
+    const notificationInterval = setInterval(loadNotifications, 5000);
+    
+    return () => clearInterval(notificationInterval);
+  }, [user]);
 
   useEffect(() => {
     // Set up daily notification reminder
@@ -143,7 +173,7 @@ const Dashboard = ({ user, onLogout }) => {
     }
 
     // Set week-specific information
-    const week = user.currentWeek;
+    const week = currentUser.currentWeek;
     if (week <= 12) {
       setWeekInfo('First trimester - Focus on nutrition and rest');
     } else if (week <= 28) {
@@ -151,7 +181,7 @@ const Dashboard = ({ user, onLogout }) => {
     } else {
       setWeekInfo('Third trimester - Prepare for delivery');
     }
-  }, [user.currentWeek]);
+  }, [currentUser.currentWeek]);
 
   const dashboardItems = [
     {
@@ -205,7 +235,7 @@ const Dashboard = ({ user, onLogout }) => {
   ];
 
   // Calculate pregnancy progress
-  const progress = Math.min(100, (user.currentWeek / 40) * 100);
+  const progress = Math.min(100, (currentUser.currentWeek / 40) * 100);
 
   return (
     <>
@@ -215,6 +245,7 @@ const Dashboard = ({ user, onLogout }) => {
             edge="start"
             color="inherit"
             aria-label="menu"
+            onClick={() => setDrawerOpen(true)}
             sx={{ mr: 2, color: '#667eea' }}
           >
             <MenuIcon />
@@ -225,74 +256,91 @@ const Dashboard = ({ user, onLogout }) => {
               PregnancyCare
             </Typography>
           </Box>
-          <IconButton color="inherit" sx={{ color: '#667eea' }}>
-            <Badge badgeContent={notificationsCount} color="error">
+          <IconButton 
+            color="inherit" 
+            sx={{ color: '#667eea' }}
+            onClick={() => setNotificationDialogOpen(true)}
+          >
+            <Badge badgeContent={notifications.filter(n => !n.read).length} color="error">
               <Notifications />
             </Badge>
           </IconButton>
-          <IconButton onClick={handleAvatarClick}>
-            <Avatar 
-              sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40 }}
-              src={user.avatar}
-            >
-              {user.name.charAt(0)}
-            </Avatar>
-          </IconButton>
-          <Menu
-            anchorEl={anchorEl}
-            open={open}
-            onClose={handleClose}
-            onClick={handleClose}
-            PaperProps={{
-              elevation: 0,
-              sx: {
-                overflow: 'visible',
-                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
-                mt: 1.5,
-                '& .MuiAvatar-root': {
-                  width: 32,
-                  height: 32,
-                  ml: -0.5,
-                  mr: 1,
-                },
-                '&:before': {
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  top: 0,
-                  right: 14,
-                  width: 10,
-                  height: 10,
-                  bgcolor: 'background.paper',
-                  transform: 'translateY(-50%) rotate(45deg)',
-                  zIndex: 0,
-                },
-              },
-            }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          <Avatar 
+            sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40 }}
+            src={currentUser.avatar}
           >
-            <MenuItem onClick={handleProfile}>
-              <ListItemIcon>
-                <Person fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Profile</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={handleLogout}>
-              <ListItemIcon>
-                <Logout fontSize="small" />
-              </ListItemIcon>
-              <ListItemText>Logout</ListItemText>
-            </MenuItem>
-          </Menu>
+            {currentUser.name.charAt(0)}
+          </Avatar>
         </Toolbar>
       </StyledAppBar>
+
+      <Drawer
+        anchor="left"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <Box sx={{ width: 250, pt: 2 }}>
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Typography variant="h6" sx={{ color: '#667eea', fontWeight: 600 }}>
+              PregnancyCare
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#666' }}>
+              Week {currentUser.currentWeek}
+            </Typography>
+          </Box>
+          <Divider />
+          <List>
+            {navigationItems.map((item) => (
+              <ListItem 
+                button 
+                key={item.path}
+                onClick={() => {
+                  navigate(item.path);
+                  setDrawerOpen(false);
+                }}
+                sx={{
+                  '&:hover': {
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)'
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ color: '#667eea' }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.label} />
+              </ListItem>
+            ))}
+          </List>
+          <Divider />
+          <List>
+            <ListItem 
+              button 
+              onClick={() => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                setDrawerOpen(false);
+              }}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 68, 68, 0.1)'
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: '#ff4444' }}>
+                <ExitToApp />
+              </ListItemIcon>
+              <ListItemText primary="Logout" sx={{ color: '#ff4444' }} />
+            </ListItem>
+          </List>
+        </Box>
+      </Drawer>
 
       <DashboardContainer>
         <HeaderSection>
           <Box sx={{ position: 'relative', zIndex: 1 }}>
             <Typography variant="h4" gutterBottom fontWeight="700">
-              Week {user.currentWeek} of Pregnancy
+              Week {currentUser.currentWeek} of Pregnancy
             </Typography>
             <Typography variant="h6" fontWeight="400" sx={{ opacity: 0.9 }}>
               {weekInfo}
@@ -316,7 +364,7 @@ const Dashboard = ({ user, onLogout }) => {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent'
         }}>
-          Welcome back, {user.name}! 🌸
+          Welcome back, {currentUser.name}! 🌸
         </Typography>
 
         <Grid container spacing={3}>
@@ -360,13 +408,110 @@ const Dashboard = ({ user, onLogout }) => {
             This Week's Tips
           </Typography>
           <Typography variant="body2" color="#5a67d8" sx={{ lineHeight: 1.6 }}>
-            {user.currentWeek <= 12 
+            {currentUser.currentWeek <= 12 
               ? "Focus on getting enough folic acid, iron, and calcium. Small, frequent meals can help with morning sickness. Stay hydrated and consider light walks."
-              : user.currentWeek <= 28 
+              : currentUser.currentWeek <= 28 
               ? "Stay hydrated and consider prenatal yoga. This is a good time to plan your maternity leave. Monitor your baby's movements daily."
               : "Practice breathing exercises. Pack your hospital bag and finalize your birth plan. Watch for signs of labor and rest when possible."}
           </Typography>
         </Box>
+        
+        {/* Notifications Dialog */}
+        <Dialog 
+          open={notificationDialogOpen} 
+          onClose={() => setNotificationDialogOpen(false)}
+          maxWidth="sm" 
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: '24px',
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderRadius: '24px 24px 0 0',
+            py: 3,
+            textAlign: 'center'
+          }}>
+            🔔 Health Notifications
+          </DialogTitle>
+          <DialogContent sx={{ p: 3 }}>
+            {notifications.length === 0 ? (
+              <Typography variant="body1" sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                No notifications yet
+              </Typography>
+            ) : (
+              <Box sx={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {notifications.map((notification) => (
+                  <Box 
+                    key={notification.id}
+                    sx={{ 
+                      p: 2, 
+                      mb: 2, 
+                      borderRadius: '12px',
+                      background: notification.type === 'HIGH_RISK' 
+                        ? 'linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%)' 
+                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: '600' }}>
+                        {notification.title}
+                      </Typography>
+                      {!notification.read && (
+                        <Chip 
+                          label="New" 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: 'rgba(255,255,255,0.3)', 
+                            color: 'white',
+                            fontWeight: '600'
+                          }} 
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{ mb: 2, opacity: 0.9 }}>
+                      {notification.message}
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      {new Date(notification.timestamp).toLocaleString()}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button 
+              onClick={() => {
+                // Mark all as read
+                const updatedNotifications = notifications.map(n => ({ ...n, read: true }));
+                localStorage.setItem('healthNotifications', JSON.stringify(updatedNotifications));
+                setNotifications(updatedNotifications);
+              }}
+              sx={{ borderRadius: '12px', textTransform: 'none' }}
+            >
+              Mark All Read
+            </Button>
+            <Button 
+              onClick={() => setNotificationDialogOpen(false)}
+              variant="contained"
+              sx={{ 
+                borderRadius: '12px', 
+                textTransform: 'none',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </DashboardContainer>
     </>
   );

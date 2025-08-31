@@ -1,7 +1,7 @@
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { Home, Person, Assignment, Chat, FitnessCenter, Games, LocalHospital, Emergency } from '@mui/icons-material';
+import { Home, Person, Assignment, Chat, FitnessCenter, Games, Emergency } from '@mui/icons-material';
 
 const Navbar = ({ user, onLogout }) => {
   const navigate = useNavigate();
@@ -13,7 +13,7 @@ const Navbar = ({ user, onLogout }) => {
     { label: 'Chat', path: '/chatbot', icon: <Chat /> },
     { label: 'Exercise', path: '/exercise', icon: <FitnessCenter /> },
     { label: 'Game', path: '/game', icon: <Games /> },
-    { label: 'Hospitals', path: '/hospitals', icon: <LocalHospital /> },
+
     { label: 'SOS', path: '/sos', icon: <Emergency /> },
   ];
 
