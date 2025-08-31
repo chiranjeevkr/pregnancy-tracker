@@ -172,7 +172,7 @@ const DailyReport = ({ user }) => {
       });
       setReports(response.data);
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error('Error fetching reports:', encodeURIComponent(error.message));
     }
   };
 
@@ -261,14 +261,14 @@ const DailyReport = ({ user }) => {
     
     doc.setFontSize(12);
     doc.setTextColor(0, 0, 0);
-    doc.text(`Date: ${date}`, 20, 60);
-    doc.text(`Week of Pregnancy: ${report.currentWeek}`, 20, 75);
+    doc.text(`Date: ${encodeURIComponent(date)}`, 20, 60);
+    doc.text(`Week of Pregnancy: ${encodeURIComponent(report.currentWeek)}`, 20, 75);
     doc.text(`Blood Pressure: ${report.bloodPressure.systolic}/${report.bloodPressure.diastolic} mmHg`, 20, 90);
     doc.text(`Blood Sugar: ${report.bloodSugar} mg/dL`, 20, 105);
     doc.text(`Weight: ${report.weight} kg`, 20, 120);
     
     const moodObj = moods.find(m => m.value === report.mood);
-    doc.text(`Mood: ${report.mood} ${moodObj ? moodObj.emoji : ''}`, 20, 135);
+    doc.text(`Mood: ${encodeURIComponent(report.mood)} ${moodObj ? moodObj.emoji : ''}`, 20, 135);
     doc.text(`Health Score: ${report.healthScore}/100`, 20, 150);
     doc.text(`Risk Percentage: ${report.riskPercentage || 'N/A'}%`, 20, 165);
     
@@ -319,7 +319,7 @@ const DailyReport = ({ user }) => {
         // Restore if API fails
         setReports(reports);
         setMessage('Error deleting report');
-        console.error('Delete error:', error);
+        console.error('Delete error:', encodeURIComponent(error.message));
       }
     }
   };

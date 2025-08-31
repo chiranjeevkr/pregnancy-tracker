@@ -1,33 +1,35 @@
 {
-  "name": "pregnancy-tracker",
+  "name": "@pregnancy-tracker/server",
   "version": "1.0.0",
-  "description": "MERN stack pregnancy tracking application",
+  "description": "Pregnancy tracking application server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build"
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build": "cd client && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": ["pregnancy", "health", "tracker"],
+  "author": "Pregnancy Tracker Team",
+  "license": "MIT",
   "dependencies": {
-    "@google/generative-ai": "^0.2.1",
-    "@huggingface/inference": "^4.7.1",
+    "@google/generative-ai": "^0.21.0",
     "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "csurf": "^1.11.0",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^8.0.1",
-    "helmet": "^8.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^7.5.0",
-    "nodemailer": "^6.10.1",
-    "openai": "^5.16.0"
+    "mongoose": "^8.8.4",
+    "nodemailer": "^6.9.17"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0",
-    "nodemon": "^3.0.1"
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.1.9"
   }
 }

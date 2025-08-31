@@ -74,10 +74,14 @@ const authLimiter = rateLimit({
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
 
-// CSRF Protection (disabled for API endpoints using JWT)
-// For web forms, enable CSRF protection
-const csrfProtection = csrf({ cookie: true });
-// app.use(csrfProtection); // Uncomment for form-based auth
+// CSRF Protection for state-changing operations
+const csrfProtection = csrf({ 
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  }
+});
 
 // MongoDB connection with error handling
 const connectDB = async () => {
@@ -186,7 +190,7 @@ app.post('/api/register', async (req, res) => {
       return res.status(503).json({ message: 'Database not available. Please try again later.' });
     }
     
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: { $regex: new RegExp('^' + email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
@@ -212,8 +216,8 @@ app.post('/api/register', async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.status(201).json({ token, user: { id: user._id, name, email, currentWeek: pregnancyWeeks } });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Registration failed: ' + error.message });
+    console.error('Registration error:', encodeURIComponent(error.message));
+    res.status(500).json({ message: 'Registration failed. Please try again.' });
   }
 });
 
@@ -226,7 +230,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(503).json({ message: 'Database not available. Please try again later.' });
     }
     
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: { $regex: new RegExp('^' + email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') } });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -248,8 +252,8 @@ app.post('/api/login', async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, user: { id: user._id, name: user.name, email, currentWeek: user.currentWeek } });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Login failed: ' + error.message });
+    console.error('Login error:', encodeURIComponent(error.message));
+    res.status(500).json({ message: 'Login failed. Please try again.' });
   }
 });
 

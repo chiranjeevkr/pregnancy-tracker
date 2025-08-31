@@ -82,7 +82,7 @@ const Journal = ({ user, onLogout }) => {
       });
       setEntries(response.data);
     } catch (error) {
-      console.error('Error loading entries:', error);
+      console.error('Error loading entries:', encodeURIComponent(error.message));
       setMessage('Error loading journal entries');
     }
   };
@@ -134,7 +134,12 @@ const Journal = ({ user, onLogout }) => {
       canvas.height = height;
       
       ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', 0.7)); // 70% quality
+      const sanitizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      if (sanitizedDataUrl && sanitizedDataUrl.startsWith('data:image/')) {
+        callback(sanitizedDataUrl);
+      } else {
+        callback(null);
+      }
     };
     
     img.src = src;
@@ -161,7 +166,7 @@ const Journal = ({ user, onLogout }) => {
       setSelectedImage(null);
       setMessage('Memory saved successfully! 💕');
     } catch (error) {
-      console.error('Error saving entry:', error);
+      console.error('Error saving entry:', encodeURIComponent(error.message));
       setMessage('Error saving memory. Please try again.');
     }
   };
@@ -177,7 +182,7 @@ const Journal = ({ user, onLogout }) => {
       setViewDialog(false);
       setMessage('Memory deleted');
     } catch (error) {
-      console.error('Error deleting entry:', error);
+      console.error('Error deleting entry:', encodeURIComponent(error.message));
       setMessage('Error deleting memory');
     }
   };
@@ -358,7 +363,7 @@ const Journal = ({ user, onLogout }) => {
       
       setMessage('Video downloaded successfully! 🎥');
     } catch (error) {
-      console.error('Video generation error:', error);
+      console.error('Video generation error:', encodeURIComponent(error.message));
       setMessage('Error generating video. Please try again.');
     } finally {
       setIsGeneratingVideo(false);

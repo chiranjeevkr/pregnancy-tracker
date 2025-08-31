@@ -30,7 +30,7 @@ This hospital finder uses Google Places API as the primary data source for accur
 1. Open `.env` file in project root
 2. Replace `your-google-places-api-key-here` with your actual API key:
 ```
-GOOGLE_PLACES_API_KEY=AIzaSyC1234567890abcdefghijklmnopqrstuvwx
+GOOGLE_PLACES_API_KEY=your-google-places-api-key-here
 ```
 
 ## API Usage & Costs
