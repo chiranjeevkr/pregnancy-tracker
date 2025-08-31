@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { HfInference } = require('@huggingface/inference');
 const nodemailer = require('nodemailer');
@@ -57,9 +59,32 @@ const otpStore = new Map();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security Middleware
+app.use(helmet()); // Security headers
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://your-domain.com'] 
+    : ['http://localhost:3000'],
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: 'Too many authentication attempts, please try again later.'
+});
+app.use('/api/login', authLimiter);
+app.use('/api/register', authLimiter);
 
 // MongoDB connection with error handling
 const connectDB = async () => {
@@ -135,7 +160,12 @@ const authenticateToken = (req, res, next) => {
   
   if (!token) return res.sendStatus(401);
   
-  jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, user) => {
+  if (!process.env.JWT_SECRET) {
+    console.error('JWT_SECRET not set in environment variables');
+    return res.status(500).json({ message: 'Server configuration error' });
+  }
+  
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.sendStatus(403);
     req.user = user;
     next();
@@ -172,7 +202,10 @@ app.post('/api/register', async (req, res) => {
     
     await user.save();
     
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret');
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.status(201).json({ token, user: { id: user._id, name, email, currentWeek: pregnancyWeeks } });
   } catch (error) {
     console.error('Registration error:', error);
@@ -205,7 +238,10 @@ app.post('/api/login', async (req, res) => {
     user.currentWeek = Math.min(weeksPassed + 1, 40);
     await user.save();
     
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret');
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, user: { id: user._id, name: user.name, email, currentWeek: user.currentWeek } });
   } catch (error) {
     console.error('Login error:', error);
