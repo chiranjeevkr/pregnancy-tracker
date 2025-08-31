@@ -10,8 +10,9 @@ import DailyReport from './components/DailyReport';
 import Chatbot from './components/Chatbot';
 import Exercise from './components/Exercise';
 import Game from './components/Game';
+import Journal from './components/Journal';
 import SOS from './components/SOS';
-
+import Emergency from './components/Emergency';
 
 import WelcomePopup from './components/WelcomePopup';
 import DailyRoutinePopup from './components/DailyRoutinePopup';
@@ -121,27 +122,35 @@ function App() {
             />
             <Route 
               path="/profile" 
-              element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/login" />} 
+              element={user ? <Profile user={user} setUser={setUser} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/daily-report" 
-              element={user ? <DailyReport user={user} /> : <Navigate to="/login" />} 
+              element={user ? <DailyReport user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/chatbot" 
-              element={user ? <Chatbot user={user} /> : <Navigate to="/login" />} 
+              element={user ? <Chatbot user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/exercise" 
-              element={user ? <Exercise user={user} /> : <Navigate to="/login" />} 
+              element={user ? <Exercise user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/game" 
-              element={user ? <Game user={user} /> : <Navigate to="/login" />} 
+              element={user ? <Game user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
+            />
+            <Route 
+              path="/journal" 
+              element={user ? <Journal user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
             <Route 
               path="/sos" 
-              element={user ? <SOS user={user} /> : <Navigate to="/login" />} 
+              element={user ? <SOS user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
+            />
+            <Route 
+              path="/emergency" 
+              element={user ? <Emergency user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
             />
 
             <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

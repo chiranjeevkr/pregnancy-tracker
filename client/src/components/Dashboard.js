@@ -3,35 +3,45 @@ import {
   Typography, Card, CardContent, Grid, Box, 
   AppBar, Toolbar, Avatar, Badge, IconButton,
   Drawer, List, ListItem, ListItemIcon, ListItemText, Divider,
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Chip,
+  Menu, MenuItem
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { 
   Assignment, Chat, FitnessCenter, Games, 
   LocalHospital, Emergency, Notifications,
-  Menu as MenuIcon, Woman, Home, Person, ExitToApp
+  Menu as MenuIcon, Woman, Home, Person, ExitToApp, BookOnline
 } from '@mui/icons-material';
-import { styled, keyframes } from '@mui/system';
+import { styled } from '@mui/system';
 import axios from 'axios';
 
-// Animations
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
 
-const pulse = keyframes`
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-`;
 
 // Styled components
 const DashboardContainer = styled('div')(({ theme }) => ({
   padding: theme.spacing(2),
-  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e9f0 100%)',
+  background: `
+    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)),
+    url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB2aWV3Qm94PSIwIDAgMTkyMCAxMDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZGVmcz4KPGZ1bHRlciBpZD0iYmx1ciI+CjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249IjMwIi8+CjwvZmlsdGVyPgo8L2RlZnM+CjxyZWN0IHdpZHRoPSIxOTIwIiBoZWlnaHQ9IjEwODAiIGZpbGw9InVybCgjZ3JhZGllbnQpIi8+CjxkZWZzPgo8bGluZWFyR3JhZGllbnQgaWQ9ImdyYWRpZW50IiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzY2N2VlYTtzdG9wLW9wYWNpdHk6MC44Ii8+CjxzdG9wIG9mZnNldD0iMjUlIiBzdHlsZT0ic3RvcC1jb2xvcjojZjA5M2ZiO3N0b3Atb3BhY2l0eTowLjciLz4KPHN0b3Agb2Zmc2V0PSI1MCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZWQ2ZTM7c3RvcC1vcGFjaXR5OjAuNiIvPgo8c3RvcCBvZmZzZXQ9Ijc1JSIgc3R5bGU9InN0b3AtY29sb3I6I2E4ZWRlYTtzdG9wLW9wYWNpdHk6MC43Ii8+CjxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6Izc2NGJhMjtzdG9wLW9wYWNpdHk6MC44Ii8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPGNpcmNsZSBjeD0iMjAwIiBjeT0iMjAwIiByPSIxNTAiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIgZmlsdGVyPSJ1cmwoI2JsdXIpIi8+CjxjaXJjbGUgY3g9IjE2MDAiIGN5PSIzMDAiIHI9IjIwMCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA4KSIgZmlsdGVyPSJ1cmwoI2JsdXIpIi8+CjxjaXJjbGUgY3g9IjQwMCIgY3k9IjcwMCIgcj0iMTgwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDkpIiBmaWx0ZXI9InVybCgjYmx1cikiLz4KPGNpcmNsZSBjeD0iMTQwMCIgY3k9IjgwMCIgcj0iMjIwIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDcpIiBmaWx0ZXI9InVybCgjYmx1cikiLz4KPGNpcmNsZSBjeD0iODAwIiBjeT0iNDAwIiByPSIxNjAiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiIGZpbHRlcj0idXJsKCNibHVyKSIvPgo8L3N2Zz4K')
+  `,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'fixed',
   minHeight: '100vh',
-  fontFamily: '"Poppins", "Roboto", sans-serif',
+  fontFamily: '"Roboto", sans-serif',
+  position: 'relative',
+  '&::before': {
+    content: '""',
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(1px)',
+    zIndex: -1
+  }
 }));
 
 const HeaderSection = styled('div')(({ theme }) => ({
@@ -56,28 +66,27 @@ const HeaderSection = styled('div')(({ theme }) => ({
 }));
 
 const DashboardCard = styled(Card)(({ theme, gradient }) => ({
-  borderRadius: '18px',
+  borderRadius: '12px',
   cursor: 'pointer',
   transition: 'all 0.3s ease',
   height: '100%',
-  background: gradient || 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
-  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)',
-  border: '1px solid rgba(255, 255, 255, 0.5)',
-  animation: `${fadeIn} 0.5s ease-out`,
+  background: gradient || 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(20px)',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+  border: '1px solid rgba(255, 255, 255, 0.3)',
   '&:hover': {
-    transform: 'translateY(-8px)',
-    boxShadow: '0 15px 35px rgba(0, 0, 0, 0.15)',
-    animation: `${pulse} 1s ease-in-out`,
+    transform: 'translateY(-4px)',
+    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
   },
 }));
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: 'rgba(255, 255, 255, 0.95)',
-  backdropFilter: 'blur(10px)',
+  backdropFilter: 'blur(20px)',
   color: theme.palette.text.primary,
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
-  marginBottom: theme.spacing(3),
-  borderRadius: '12px',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+  marginBottom: theme.spacing(2),
+  border: '1px solid rgba(255, 255, 255, 0.3)',
 }));
 
 const ProgressBar = styled('div')(({ theme, progress }) => ({
@@ -99,13 +108,14 @@ const ProgressBar = styled('div')(({ theme, progress }) => ({
   }
 }));
 
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [weekInfo, setWeekInfo] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(user);
   const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
+  const [avatarMenuAnchor, setAvatarMenuAnchor] = useState(null);
 
   const navigationItems = [
     { label: 'Dashboard', path: '/dashboard', icon: <Home /> },
@@ -114,8 +124,9 @@ const Dashboard = ({ user }) => {
     { label: 'AI Chatbot', path: '/chatbot', icon: <Chat /> },
     { label: 'Exercise Guide', path: '/exercise', icon: <FitnessCenter /> },
     { label: 'Stress Relief', path: '/game', icon: <Games /> },
-    { label: 'Find Hospitals', path: '/hospitals', icon: <LocalHospital /> },
+    { label: 'My Journal', path: '/journal', icon: <BookOnline /> },
     { label: 'Emergency SOS', path: '/sos', icon: <Emergency /> },
+    { label: 'Emergency Hospitals', path: '/emergency', icon: <LocalHospital /> },
   ];
 
   // Fetch fresh user data and notifications on component mount
@@ -217,19 +228,28 @@ const Dashboard = ({ user }) => {
       color: 'white'
     },
     {
-      title: 'Find Hospitals',
-      description: 'Locate nearby hospitals and clinics',
-      icon: <LocalHospital sx={{ fontSize: 32, color: 'white' }} />,
-      path: '/hospitals',
-      gradient: 'linear-gradient(135deg, #0072ff 0%, #00c6ff 100%)',
+      title: 'My Journal',
+      description: 'Capture your pregnancy memories',
+      icon: <BookOnline sx={{ fontSize: 32, color: 'white' }} />,
+      path: '/journal',
+      gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
       color: 'white'
     },
+
     {
       title: 'Emergency SOS',
       description: 'Quick access to emergency contacts',
       icon: <Emergency sx={{ fontSize: 32, color: 'white' }} />,
       path: '/sos',
       gradient: 'linear-gradient(135deg, #ff4444 0%, #ff6b6b 100%)',
+      color: 'white'
+    },
+    {
+      title: 'Emergency Hospitals',
+      description: 'Find nearby hospitals instantly',
+      icon: <LocalHospital sx={{ fontSize: 32, color: 'white' }} />,
+      path: '/emergency',
+      gradient: 'linear-gradient(135deg, #d32f2f 0%, #f44336 100%)',
       color: 'white'
     }
   ];
@@ -250,10 +270,16 @@ const Dashboard = ({ user }) => {
           >
             <MenuIcon />
           </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, cursor: 'pointer' }} onClick={() => navigate('/dashboard')}>
             <Woman sx={{ color: '#667eea', mr: 1 }} />
-            <Typography variant="h6" component="div" sx={{ fontWeight: '600' }}>
-              PregnancyCare
+            <Typography variant="h5" component="div" sx={{ 
+              fontWeight: '700',
+              fontSize: '1.5rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
+              Mom's Saathi
             </Typography>
           </Box>
           <IconButton 
@@ -266,11 +292,42 @@ const Dashboard = ({ user }) => {
             </Badge>
           </IconButton>
           <Avatar 
-            sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40 }}
+            sx={{ ml: 2, bgcolor: '#667eea', width: 40, height: 40, cursor: 'pointer' }}
             src={currentUser.avatar}
+            onClick={(e) => setAvatarMenuAnchor(e.currentTarget)}
           >
             {currentUser.name.charAt(0)}
           </Avatar>
+          <Menu
+            anchorEl={avatarMenuAnchor}
+            open={Boolean(avatarMenuAnchor)}
+            onClose={() => setAvatarMenuAnchor(null)}
+            PaperProps={{
+              sx: {
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                mt: 1
+              }
+            }}
+          >
+            <MenuItem onClick={() => { navigate('/profile'); setAvatarMenuAnchor(null); }}>
+              <Person sx={{ mr: 1, color: '#667eea' }} />
+              Profile
+            </MenuItem>
+            <MenuItem onClick={() => {
+              if (onLogout) {
+                onLogout();
+              } else {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+              }
+              setAvatarMenuAnchor(null);
+            }}>
+              <ExitToApp sx={{ mr: 1, color: '#ff4444' }} />
+              Logout
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </StyledAppBar>
 
@@ -281,8 +338,12 @@ const Dashboard = ({ user }) => {
       >
         <Box sx={{ width: 250, pt: 2 }}>
           <Box sx={{ px: 2, pb: 2 }}>
-            <Typography variant="h6" sx={{ color: '#667eea', fontWeight: 600 }}>
-              PregnancyCare
+            <Typography variant="h5" sx={{ 
+              color: '#667eea', 
+              fontWeight: 700,
+              fontSize: '1.4rem'
+            }}>
+              Mom's Saathi
             </Typography>
             <Typography variant="body2" sx={{ color: '#666' }}>
               Week {currentUser.currentWeek}
@@ -316,9 +377,13 @@ const Dashboard = ({ user }) => {
             <ListItem 
               button 
               onClick={() => {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                navigate('/login');
+                if (onLogout) {
+                  onLogout();
+                } else {
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('user');
+                  navigate('/login');
+                }
                 setDrawerOpen(false);
               }}
               sx={{
@@ -336,7 +401,98 @@ const Dashboard = ({ user }) => {
         </Box>
       </Drawer>
 
-      <DashboardContainer>
+      {/* Welcome Section */}
+      <Box sx={{
+        background: `
+          linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 50%, rgba(168, 237, 234, 0.1) 100%),
+          url('https://images.unsplash.com/photo-1555252333-9f8e92e65df9?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80')
+        `,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundBlendMode: 'overlay',
+        backdropFilter: 'blur(10px)',
+        borderRadius: '0 0 30px 30px',
+        py: 4,
+        px: 3,
+        mb: 3,
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(102, 126, 234, 0.15)',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(255, 255, 255, 0.5)',
+          zIndex: 0
+        }
+      }}>
+        <Box sx={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: '800px', mx: 'auto' }}>
+          <Typography 
+            variant="h3" 
+            sx={{
+              fontWeight: '700',
+              fontSize: { xs: '1.8rem', md: '2.5rem' },
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #a8edea 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 2,
+              fontFamily: '"Playfair Display", serif'
+            }}
+          >
+            "Every day you carry life, you carry hope, strength, and endless love."
+          </Typography>
+          <Typography 
+            variant="h6" 
+            sx={{
+              color: 'rgba(0, 0, 0, 0.7)',
+              fontWeight: '400',
+              fontSize: { xs: '1rem', md: '1.2rem' },
+              lineHeight: 1.6,
+              maxWidth: '600px',
+              mx: 'auto',
+              fontStyle: 'italic'
+            }}
+          >
+            Welcome to Mom's Saathi - Your trusted companion throughout this beautiful journey. 
+            Track your health, connect with AI support, exercise safely, and create lasting memories 
+            of your pregnancy experience.
+          </Typography>
+          <Box sx={{ 
+            mt: 3, 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <Box sx={{
+              width: 40,
+              height: 2,
+              background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '1px'
+            }} />
+            <Typography sx={{ 
+              color: '#667eea', 
+              fontWeight: '600',
+              fontSize: '0.9rem',
+              px: 2
+            }}>
+              Week {currentUser.currentWeek} of 40
+            </Typography>
+            <Box sx={{
+              width: 40,
+              height: 2,
+              background: 'linear-gradient(90deg, #764ba2 0%, #a8edea 100%)',
+              borderRadius: '1px'
+            }} />
+          </Box>
+        </Box>
+      </Box>
+
+      <DashboardContainer sx={{ pt: 0 }}>
         <HeaderSection>
           <Box sx={{ position: 'relative', zIndex: 1 }}>
             <Typography variant="h4" gutterBottom fontWeight="700">
@@ -367,9 +523,38 @@ const Dashboard = ({ user }) => {
           Welcome back, {currentUser.name}! 🌸
         </Typography>
 
-        <Grid container spacing={3}>
-          {dashboardItems.map((item, index) => (
-            <Grid item xs={12} sm={6} md={4} key={index}>
+        <Grid container spacing={2}>
+          {dashboardItems.slice(0, 5).map((item, index) => (
+            <Grid item xs={12} sm={6} md={2.4} key={index}>
+              <DashboardCard 
+                gradient={item.gradient}
+                onClick={() => navigate(item.path)}
+              >
+                <CardContent sx={{ textAlign: 'center', color: item.color, p: 2 }}>
+                  <Box sx={{ 
+                    display: 'inline-flex', 
+                    p: 1.5, 
+                    mb: 1.5, 
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.2)'
+                  }}>
+                    {item.icon}
+                  </Box>
+                  <Typography variant="h6" gutterBottom fontWeight="600" sx={{ fontSize: '1rem' }}>
+                    {item.title}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9, fontSize: '0.85rem' }}>
+                    {item.description}
+                  </Typography>
+                </CardContent>
+              </DashboardCard>
+            </Grid>
+          ))}
+        </Grid>
+        
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          {dashboardItems.slice(5).map((item, index) => (
+            <Grid item xs={12} sm={6} md={6} key={index + 5}>
               <DashboardCard 
                 gradient={item.gradient}
                 onClick={() => navigate(item.path)}
@@ -400,9 +585,11 @@ const Dashboard = ({ user }) => {
         <Box sx={{ 
           mt: 4, 
           p: 3, 
-          borderRadius: '18px', 
-          background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.08)'
+          borderRadius: '12px', 
+          background: 'rgba(255, 255, 255, 0.95)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.3)'
         }}>
           <Typography variant="h6" gutterBottom fontWeight="600" color="#667eea">
             This Week's Tips

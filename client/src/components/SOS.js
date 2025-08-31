@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Typography, Button, Card, CardContent, Box, Alert, TextField, CircularProgress, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import { Phone, Add, LocationOn, Edit } from '@mui/icons-material';
+import { Phone, Add, LocationOn } from '@mui/icons-material';
 import axios from 'axios';
 import SharedNavigation from './SharedNavigation';
 
@@ -28,10 +28,40 @@ const SOS = ({ user }) => {
     { code: '+86', country: 'China', maxLength: 11 }
   ];
 
+  const getCurrentLocationAndServices = useCallback(() => {
+    setLoadingLocation(true);
+    
+    if (!navigator.geolocation) {
+      setLoadingLocation(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setUserLocation(location);
+        await getLocationBasedServices(location);
+        setLoadingLocation(false);
+      },
+      (error) => {
+        console.error('Location error:', error);
+        setLoadingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  }, []);
+
   useEffect(() => {
     fetchUserProfile();
     getCurrentLocationAndServices();
-  }, []);
+  }, [getCurrentLocationAndServices]);
 
   const fetchUserProfile = async () => {
     try {
@@ -66,35 +96,7 @@ const SOS = ({ user }) => {
     }
   };
 
-  const getCurrentLocationAndServices = () => {
-    setLoadingLocation(true);
-    
-    if (!navigator.geolocation) {
-      setLoadingLocation(false);
-      return;
-    }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const location = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        };
-        setUserLocation(location);
-        await getLocationBasedServices(location);
-        setLoadingLocation(false);
-      },
-      (error) => {
-        console.error('Location error:', error);
-        setLoadingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  };
 
   const getLocationBasedServices = async (location) => {
     try {

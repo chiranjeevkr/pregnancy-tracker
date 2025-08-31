@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TextField, Button, Typography, Box, Paper, Tabs, Tab, Card, CardContent, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Rating } from '@mui/material';
-import { Send, History, Chat, ThumbUp, ThumbDown, Feedback } from '@mui/icons-material';
+import { Send, History, Chat, ThumbUp, ThumbDown } from '@mui/icons-material';
 import axios from 'axios';
 import SharedNavigation from './SharedNavigation';
 
-const Chatbot = ({ user }) => {
+const Chatbot = ({ user, onLogout }) => {
   const [messages, setMessages] = useState([
     {
       type: 'bot',
@@ -135,7 +135,7 @@ const Chatbot = ({ user }) => {
 
   return (
     <>
-      <SharedNavigation user={user} />
+      <SharedNavigation user={user} onLogout={onLogout} />
       <div className="chatbot-container">
       <Typography variant="h4" gutterBottom className="text-dark">
         Dr. AI - Maternal Health Consultant 👩‍⚕️
