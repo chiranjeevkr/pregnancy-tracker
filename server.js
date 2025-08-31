@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const csrf = require('csurf');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { HfInference } = require('@huggingface/inference');
 const nodemailer = require('nodemailer');
@@ -85,6 +86,11 @@ const authLimiter = rateLimit({
 });
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
+
+// CSRF Protection (disabled for API endpoints using JWT)
+// For web forms, enable CSRF protection
+const csrfProtection = csrf({ cookie: true });
+// app.use(csrfProtection); // Uncomment for form-based auth
 
 // MongoDB connection with error handling
 const connectDB = async () => {
