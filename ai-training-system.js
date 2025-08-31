@@ -9,7 +9,7 @@ const trainingDataSchema = new mongoose.Schema({
   userFeedback: { 
     type: String, 
     enum: ['helpful', 'not_helpful', 'partially_helpful'],
-    default: null 
+    required: false
   },
   userContext: {
     pregnancyWeek: Number,

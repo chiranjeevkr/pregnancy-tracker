@@ -16,6 +16,7 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import { styled } from '@mui/system';
 import SharedNavigation from './SharedNavigation';
+import WearableSync from './WearableSync';
 
 
 // Enhanced Styled Components
@@ -185,6 +186,17 @@ const DailyReport = ({ user }) => {
     } else {
       setFormData({ ...formData, [name]: value });
     }
+  };
+
+  const handleWearableData = (data) => {
+    setFormData({
+      ...formData,
+      bloodPressure: {
+        systolic: data.systolicBP,
+        diastolic: data.diastolicBP
+      },
+      bloodSugar: data.bloodSugar
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -402,6 +414,11 @@ const DailyReport = ({ user }) => {
             {message}
           </Alert>
         )}
+
+        {/* Wearable Sync Section */}
+        <Box sx={{ mb: 4 }}>
+          <WearableSync onDataFetched={handleWearableData} />
+        </Box>
 
         <Box sx={{ display: 'flex', gap: 4, alignItems: 'stretch', flexWrap: 'wrap' }}>
           {/* Enhanced Input Form Section */}
